@@ -1,0 +1,12 @@
+{
+  "kit": "change-capsules",
+  "kitVersion": "0.1.0",
+  "format": "change-capsule/v1",
+  "formatVersion": 1,
+  "capsules": ".capsules",
+  "schema": ".capsules/capsule.schema.json",
+  "agents": [
+    "claude",
+    "codex"
+  ]
+}

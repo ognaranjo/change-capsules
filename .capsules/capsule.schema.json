@@ -1,0 +1,222 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:change-capsules:capsule:v1",
+  "title": "Change capsule front matter (format change-capsule/v1)",
+  "description": "One capsule per finished task: who did it, why, what changed, what was tested, and what is still open. Stored as YAML front matter at the top of a Markdown file named <id>.md.",
+  "type": "object",
+  "required": ["format", "id", "date", "title", "agent", "outcome", "why", "changes", "tests"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "change-capsule/v1",
+      "description": "Format marker. Always change-capsule/v1 for this version."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9]{8}-[0-9]{4}-[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 120,
+      "description": "Stable id: UTC date and time the task finished, then a short slug, e.g. 20261107-1432-retry-on-sync-timeout. The file is named <id>.md. Never reuse or change an id."
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}:[0-9]{2})$",
+      "description": "When the task finished, ISO 8601 with a time zone. Quote it in YAML."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "One line: what was done."
+    },
+    "agent": {
+      "type": "object",
+      "required": ["client", "model"],
+      "additionalProperties": false,
+      "description": "The agent that did the work, as it declares itself. Information only.",
+      "properties": {
+        "client": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$",
+          "maxLength": 60,
+          "description": "Agent client, e.g. claude-code, codex, cursor, copilot, aider, or human. Use unknown when not known."
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Model as the agent reports it, e.g. claude-opus-5-5. Use unknown rather than guessing."
+        }
+      }
+    },
+    "outcome": {
+      "enum": ["completed", "partial", "failed"],
+      "description": "completed: the task is done. partial: useful work landed, more remains (say what in follow_ups). failed: the task did not work; say why."
+    },
+    "why": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000,
+      "description": "The reason for the change: the request, bug or decision behind it. A short paragraph."
+    },
+    "changes": {
+      "type": "object",
+      "required": ["files"],
+      "additionalProperties": false,
+      "properties": {
+        "commits": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{7,64}$",
+            "description": "Commit SHA, quoted."
+          },
+          "uniqueItems": true,
+          "description": "Commits that carry this task, oldest first. Empty or omitted when the work is not committed yet."
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "status"],
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
+                "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?!\\.\\.?[/\\\\])(?!.*(^|[/\\\\])\\.\\.([/\\\\]|$)).+$",
+                "description": "Repository-relative path with forward slashes."
+              },
+              "status": {
+                "enum": ["added", "modified", "deleted", "renamed", "copied"]
+              },
+              "from": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
+                "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?!\\.\\.?[/\\\\])(?!.*(^|[/\\\\])\\.\\.([/\\\\]|$)).+$",
+                "description": "Previous path, for renamed or copied files."
+              }
+            }
+          },
+          "description": "Every file the task changed. An empty list is allowed only for tasks that changed no files (for example an operation run)."
+        }
+      }
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "result"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "What was checked, e.g. Unit tests, Pester suite, Manual check of the login page."
+          },
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "description": "The exact command that ran, when there was one."
+          },
+          "result": {
+            "enum": ["passed", "failed", "skipped", "not_run"],
+            "description": "The real result. not_run records a check that should have run and did not."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of tests that ran, when known."
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number that failed, when known."
+          },
+          "skipped": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number skipped, when known."
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      },
+      "description": "Every check that ran for this task, with its real result. An empty list means nothing was tested; say why in risks."
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "target", "runs", "outcome"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": ["provision", "deploy", "migrate", "rotate", "backup", "restore", "clone", "seed", "check", "other"]
+          },
+          "target": {
+            "type": "string",
+            "maxLength": 300,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*:[A-Za-z0-9][A-Za-z0-9._-]*(:[A-Za-z0-9][A-Za-z0-9._-]*)?$",
+            "description": "What it ran against, as <environment>:<service> or <environment>:<service>:<database>, e.g. staging:web-farm or prod:api:billing-db. Labels, never a connection string."
+          },
+          "runs": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "description": "The script, workflow, command or runbook that ran."
+          },
+          "outcome": {
+            "enum": ["succeeded", "failed", "partial", "cancelled"]
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      },
+      "description": "Optional. Deploys, migrations, provisioning and other operations the task ran."
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000,
+        "pattern": "^(https://\\S+|(?![/\\\\])(?![A-Za-z]:)(?!\\.\\.?[/\\\\])(?!.*(^|[/\\\\])\\.\\.([/\\\\]|$)).+)$"
+      },
+      "uniqueItems": true,
+      "description": "Repository-relative paths or https URLs that back the claims: test logs, screenshots, reports, CI runs."
+    },
+    "risks": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 2000 },
+      "description": "What could still be wrong, what was not verified, what a reviewer should look at."
+    },
+    "follow_ups": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 2000 },
+      "description": "Work left for a later task. A capsule with follow_ups stays open until a later capsule lists it in resolves."
+    },
+    "resolves": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9]{8}-[0-9]{4}-[a-z0-9]+(-[a-z0-9]+)*$"
+      },
+      "uniqueItems": true,
+      "description": "Ids of earlier capsules whose open work this task finished."
+    },
+    "refs": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 500 },
+      "uniqueItems": true,
+      "description": "Optional links to the request: issue numbers, ticket ids, spec paths, PR URLs."
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "name": "change-capsules",
+  "version": "0.1.0",
+  "description": "Keep the why, the tests and the evidence of every AI agent change in your repo: one Markdown change capsule per finished task, plus rules for Codex and Claude Code.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "change-capsules": "bin/change-capsules.mjs"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "schema",
+    "templates",
+    "docs",
+    "examples"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/",
+    "check:examples": "node bin/change-capsules.mjs check examples/capsules"
+  },
+  "keywords": [
+    "ai-agents",
+    "codex",
+    "claude-code",
+    "changelog",
+    "provenance",
+    "agents-md",
+    "change-capsule"
+  ]
+}
