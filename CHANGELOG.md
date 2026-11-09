@@ -9,6 +9,7 @@ From a Codex evaluation on Windows (Node 22.18, npm 11.6.1).
 - New optional checks for closeout: `check --evidence` (local evidence paths exist; warns when Git ignores them) and `check --staged` (the capsule's `changes.files` matches the files staged in Git). The agent rules now save evidence first, stage the work with the capsule, and run `check --evidence --staged .capsules/<id>.md` before committing.
 - Checking a single capsule file also reads the other capsules in its folder, so `resolves` is checked.
 - README: capsules record what the agent reports; the kit does not prove tests ran or evidence is genuine.
+- README: a CI example that checks every capsule with `--strict` and the evidence of capsules added in the pull request.
 
 ## 0.1.1 (2026-11-09)
 

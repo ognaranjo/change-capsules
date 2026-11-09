@@ -146,7 +146,32 @@ Two optional checks are meant for the moment a task closes:
 - `--evidence`: every local evidence path in the capsule exists, with a warning when Git ignores it (only this machine would have it).
 - `--staged`: the capsule's `changes.files` lists exactly the files staged in Git, naming any that are missing or extra. It applies to the capsules that are themselves staged.
 
-To check capsules in CI, run `npx change-capsules check --strict` as a step.
+### In CI
+
+Check every capsule with `--strict`, and check the evidence only for capsules added in the pull request: older capsules may cite logs that never left the machine that wrote them. A GitHub Actions example:
+
+```yaml
+name: capsules
+on: pull_request
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the evidence step compares with the base branch
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: All capsules are valid
+        run: npx -y change-capsules check --strict
+      - name: New capsules have their evidence in the repository
+        run: |
+          git diff --name-only --diff-filter=A "origin/${{ github.base_ref }}...HEAD" -- .capsules/ \
+            | xargs -r npx -y change-capsules check --evidence --strict
+```
+
+The evidence step only passes when the evidence a new capsule cites is committed with it; a log that Git ignores fails it. `--staged` is for the agent's own closeout, before committing, not for CI.
 
 ## Scope
 
