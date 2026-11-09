@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3 (2026-11-09)
+
+From a Codex smoke test of the published 0.1.2 on Windows.
+
+- README: the CI example selected every new file in `.capsules/`, so the pull request that installs the kit failed on `kit.json`, the schema, the template and the folder README. It now keeps only capsule files (`YYYYMMDD-HHMM-slug.md`) and doesn't fail when there are none.
+- `check` skips files named on the command line that can't be capsules (not `.md`, `README.md`, `TEMPLATE.md`, or starting with `_`) and lists them as skipped, instead of failing on them. A misnamed capsule `.md` is still checked.
+
 ## 0.1.2 (2026-11-09)
 
 From a Codex evaluation on Windows (Node 22.18, npm 11.6.1).

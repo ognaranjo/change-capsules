@@ -365,3 +365,57 @@ test("check --staged lists files missing from or extra in the capsule, and passe
   out = run(["check", "--staged", "--strict", `.capsules/${id}.md`], repo);
   assert.equal(out.status, 0, out.stdout);
 });
+
+// ---------- 0.1.3: kit files named on the command line, and the README's CI step ----------
+
+test("check skips kit files named on the command line but still checks capsules", () => {
+  const repo = tmp();
+  init({ root: repo });
+  const id = "20261110-1000-real";
+  writeFileSync(join(repo, ".capsules", `${id}.md`), capsule(id, { date: "2026-11-10T10:00:00Z" }));
+  const kitFiles = [".capsules/kit.json", ".capsules/capsule.schema.json", ".capsules/README.md", ".capsules/TEMPLATE.md"];
+  const only = run(["check", "--json", ...kitFiles], repo);
+  assert.equal(only.status, 0, only.stdout);
+  const j = JSON.parse(only.stdout);
+  assert.equal(j.capsules.length, 0);
+  assert.equal(j.skipped.length, 4);
+  const mixed = run(["check", ...kitFiles, `.capsules/${id}.md`], repo);
+  assert.equal(mixed.status, 0, mixed.stdout);
+  assert.match(mixed.stdout, /skip \.capsules\/kit\.json \(not a capsule\)/);
+  assert.match(mixed.stdout, /ok {3}\.capsules\/20261110-1000-real\.md/);
+  writeFileSync(join(repo, ".capsules", "notes.md"), "no front matter\n");
+  assert.equal(run(["check", ".capsules/notes.md"], repo).status, 1, "a misnamed .md is still checked");
+});
+
+test("the README's CI evidence step passes on the kit-install PR and checks new capsules", (t) => {
+  if (spawnSync("bash", ["-c", "true"]).status !== 0) return t.skip("bash not available");
+  const readme = toLf(readFileSync(join(ROOT, "README.md"), "utf8"));
+  const block = /- name: New capsules have their evidence in the repository\n\s+run: \|\n((?:\s{10}.*\n)+)/.exec(readme);
+  assert.ok(block, "CI step not found in README");
+  const script = block[1]
+    .split("\n").map((l) => l.trim()).join("\n")
+    .replace(/"origin\/\$\{\{ github\.base_ref \}\}\.\.\.HEAD"/, '"main...HEAD"')
+    .replace(/npx -y change-capsules/g, `"${process.execPath}" "${CLI}"`);
+
+  const repo = tmp();
+  const g = (...args) => execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", ...args], { cwd: repo, encoding: "utf8" });
+  g("init", "-q", "-b", "main");
+  writeFileSync(join(repo, "a.js"), "a\n");
+  g("add", "-A");
+  g("commit", "-qm", "base");
+  g("checkout", "-q", "-b", "install");
+  init({ root: repo });
+  g("add", "-A");
+  g("commit", "-qm", "kit");
+  const ci = () => spawnSync("bash", ["-eo", "pipefail", "-c", script], { cwd: repo, encoding: "utf8" });
+  let r = ci();
+  assert.equal(r.status, 0, `install PR: ${r.stdout}${r.stderr}`);
+
+  const id = "20261110-1000-with-evidence";
+  writeFileSync(join(repo, ".capsules", `${id}.md`), capsule(id, { date: "2026-11-10T10:00:00Z", evidence: ["logs/missing.txt"] }));
+  g("add", "-A");
+  g("commit", "-qm", "capsule");
+  r = ci();
+  assert.equal(r.status, 1, "a new capsule with missing evidence fails the step");
+  assert.match(r.stdout, /evidence logs\/missing\.txt not found/);
+});

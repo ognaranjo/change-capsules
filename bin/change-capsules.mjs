@@ -88,14 +88,14 @@ function defaultTargets(opts) {
 }
 
 function selected(opts) {
-  const { files, context } = collectTargets(defaultTargets(opts));
+  const { files, context, skipped } = collectTargets(defaultTargets(opts));
   const wanted = new Set(files.map((f) => resolve(f)));
   const all = checkAll(context);
-  return { all, results: all.filter((r) => wanted.has(resolve(r.file))) };
+  return { all, skipped, results: all.filter((r) => wanted.has(resolve(r.file))) };
 }
 
 function cmdCheck(opts) {
-  const { results } = selected(opts);
+  const { results, skipped } = selected(opts);
   const general = { errors: [], warnings: [] };
 
   if (opts.evidence) {
@@ -128,6 +128,7 @@ function cmdCheck(opts) {
       ok: !failed,
       errors: general.errors,
       warnings: general.warnings,
+      skipped: skipped.map(rel),
       capsules: results.map((r) => ({ file: rel(r.file), id: r.data?.id ?? null, errors: r.errors, warnings: r.warnings })),
     }, null, 2));
     return failed ? 1 : 0;
@@ -138,6 +139,7 @@ function cmdCheck(opts) {
     for (const e of r.errors) console.log(`     error: ${e}`);
     for (const w of r.warnings) console.log(`     warning: ${w}`);
   }
+  for (const f of skipped) console.log(`skip ${rel(f)} (not a capsule)`);
   for (const e of general.errors) console.log(`error: ${e}`);
   for (const w of general.warnings) console.log(`warning: ${w}`);
   console.log(`\n${results.length} capsule(s), ${errors} error(s), ${warnings} warning(s)`);

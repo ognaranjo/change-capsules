@@ -53,7 +53,7 @@ Front matter must be plain YAML that every parser reads the same way. The checke
 ```json
 {
   "kit": "change-capsules",
-  "kitVersion": "0.1.2",
+  "kitVersion": "0.1.3",
   "format": "change-capsule/v1",
   "formatVersion": 1,
   "capsules": ".capsules",

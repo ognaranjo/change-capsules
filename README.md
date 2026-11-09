@@ -168,10 +168,11 @@ jobs:
       - name: New capsules have their evidence in the repository
         run: |
           git diff --name-only --diff-filter=A "origin/${{ github.base_ref }}...HEAD" -- .capsules/ \
+            | { grep -E '^\.capsules/[0-9]{8}-[0-9]{4}-[a-z0-9-]+\.md$' || true; } \
             | xargs -r npx -y change-capsules check --evidence --strict
 ```
 
-The evidence step only passes when the evidence a new capsule cites is committed with it; a log that Git ignores fails it. `--staged` is for the agent's own closeout, before committing, not for CI.
+The `grep` keeps only capsule files, so the pull request that installs the kit (which adds `kit.json`, the schema, the template and the folder README) has nothing to check; `|| true` stops a no-match from failing the step. The evidence step only passes when the evidence a new capsule cites is committed with it; a log that Git ignores fails it. `--staged` is for the agent's own closeout, before committing, not for CI.
 
 ## Scope
 
