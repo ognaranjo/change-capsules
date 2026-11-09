@@ -30,11 +30,17 @@ See the README table and the schema descriptions. Rules the schema can't express
 
 - The file name equals `<id>.md`; ids are unique in the folder; a capsule does not resolve itself.
 - No secrets: private keys, cloud and GitHub tokens, API secret keys, Slack tokens and connection strings with passwords are errors.
-- Warnings: machine-local paths, an id whose date differs from `date` in UTC, `partial` or `failed` without `follow_ups` or `risks`, no tests and no risks, no files and no operations, a rename without `from`, `resolves` naming an unknown capsule.
+- Warnings: machine-local paths, an id whose date differs from `date` in UTC, `partial` or `failed` without `follow_ups` or `risks`, no tests and no risks, no files and no operations, a rename without `from`, `resolves` naming an unknown capsule, and `resolves` claims that don't count (see Open capsules).
+- With `--evidence`: an evidence path that doesn't exist is an error; one Git ignores is a warning.
+- With `--staged`, for each capsule that is itself staged: a staged file missing from `changes.files`, or a listed file that isn't staged, is an error; a different status is a warning.
+
+A capsule records what its author reports. These checks make the record complete and consistent with the repository; they do not prove that a test ran or that a log is genuine.
 
 ## Open capsules
 
-A capsule is **open** when no other capsule lists its id in `resolves`, and either its `outcome` is not `completed` or it has at least one `follow_ups` entry.
+A capsule is **open** when its `outcome` is not `completed` or it has at least one `follow_ups` entry, and no other capsule resolves it.
+
+A capsule B resolves capsule A when B lists A's id in `resolves`, B's `outcome` is not `failed`, and B's `date` is not earlier than A's. A claim that breaks either rule is ignored: A stays open, `check` warns on B (an error under `--strict`), and `open` shows the ignored claim and why.
 
 ## YAML subset
 
@@ -47,7 +53,7 @@ Front matter must be plain YAML that every parser reads the same way. The checke
 ```json
 {
   "kit": "change-capsules",
-  "kitVersion": "0.1.1",
+  "kitVersion": "0.1.2",
   "format": "change-capsule/v1",
   "formatVersion": 1,
   "capsules": ".capsules",

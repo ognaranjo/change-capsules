@@ -48,11 +48,13 @@ Run it again at any time: it only rewrites the text between its own markers and 
 
 Commit the files. From the next task on, the agent closes out with a capsule.
 
+**What a capsule proves, and what it doesn't.** A capsule records what the agent reports. The kit checks that the record is complete and consistent and, with `--staged` and `--evidence`, that it matches the staged files and that the cited evidence exists. It does not prove that a test ran or that a log is genuine. Before you rely on a capsule, have a person or another agent read the logs it cites.
+
 ## What the agent does
 
 Before a task, it runs `npx change-capsules open` (or reads `.capsules/`) to see unfinished work: capsules whose outcome is `partial` or `failed`, or that list follow-ups nobody has resolved yet.
 
-After a task that changed files, it writes `.capsules/<id>.md`, checks it with `npx change-capsules check`, commits it with the work, and tells you the capsule id. When it finishes something an earlier capsule left open, it lists that capsule in `resolves`, and the earlier one drops off the open list. Capsules are never edited after the fact.
+After a task that changed files, it saves any logs it will cite, writes `.capsules/<id>.md`, stages the work with the capsule, checks them with `npx change-capsules check --evidence --staged .capsules/<id>.md`, commits, and tells you the capsule id. When it finishes something an earlier capsule left open, it lists that capsule in `resolves`, and the earlier one drops off the open list. A failed capsule, or one dated before the capsule it names, doesn't close it. Capsules are never edited after the fact.
 
 ## An example capsule
 
@@ -123,7 +125,7 @@ YAML front matter (machine-readable) plus a free Markdown body (human notes). Th
 | `evidence` | no | Repository-relative paths or https links |
 | `risks` | no | What is unverified or could still be wrong |
 | `follow_ups` | no | Work left for later; keeps the capsule open |
-| `resolves` | no | Ids of earlier capsules this task finished |
+| `resolves` | no | Ids of earlier capsules this task finished (ignored when this capsule failed or is dated before them) |
 | `refs` | no | Issues, tickets, specs, PRs |
 
 The full contract is [`schema/capsule.schema.json`](schema/capsule.schema.json) and [`docs/format.md`](docs/format.md). The format is versioned: a future `change-capsule/v2` will be a new `format` value, and v1 files stay valid.
@@ -133,10 +135,16 @@ The full contract is [`schema/capsule.schema.json`](schema/capsule.schema.json) 
 ```bash
 npx change-capsules check            # validates .capsules/
 npx change-capsules check --strict   # warnings fail too (useful in CI)
+npx change-capsules check --evidence --staged .capsules/<id>.md   # at closeout, after git add
 npx change-capsules open             # what is still open
 ```
 
-`check` validates every capsule against the schema, checks that file names match ids and ids are unique, and refuses capsules that look like they contain a token, private key or a connection string with a password. It warns about machine-local paths, `partial` or `failed` capsules that don't say what's left, and capsules with no tests and no risks. Add `--json` for machine-readable output.
+`check` validates every capsule against the schema, checks that file names match ids and ids are unique, and refuses capsules that look like they contain a token, private key or a connection string with a password. It warns about machine-local paths, `partial` or `failed` capsules that don't say what's left, capsules with no tests and no risks, and `resolves` claims that don't count (from a failed capsule, or one dated before its target). Add `--json` for machine-readable output.
+
+Two optional checks are meant for the moment a task closes:
+
+- `--evidence`: every local evidence path in the capsule exists, with a warning when Git ignores it (only this machine would have it).
+- `--staged`: the capsule's `changes.files` lists exactly the files staged in Git, naming any that are missing or extra. It applies to the capsules that are themselves staged.
 
 To check capsules in CI, run `npx change-capsules check --strict` as a step.
 

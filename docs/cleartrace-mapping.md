@@ -31,7 +31,7 @@ Each capsule becomes one `change_capsule` write in a ClearTrace write set (`deli
 | `evidence[]` | envelope `evidenceRefs` | Paths stay repository-relative; https links stay links. Files are not uploaded unless the user asks. |
 | `risks[]` | package `contents.risks` | |
 | `follow_ups[]` | `payload.followUps` | Kept on the record. The import may offer to turn them into tickets; it never does so without the user's approval. |
-| `resolves[]` | a link from this change record to each resolved one | Resolved capsules not in ClearTrace yet are imported first, or the link is reported as unresolved. |
+| `resolves[]` | a link from this change record to each resolved one | Same rule as the kit: a link from a failed capsule, or from one dated before its target, is imported as a claim that does not close the target. Resolved capsules not in ClearTrace yet are imported first, or the link is reported as unresolved. |
 | `refs[]` | envelope `sourceRefs` | Next to the `project:<projectId>` ref the import adds. |
 | Markdown body | `payload.notes` | Text only, never executed or rendered as HTML. |
 | `format` | `payload.localFormat` | Kept so the origin of each record is visible. |

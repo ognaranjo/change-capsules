@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 // change-capsules: install capsule rules into a repository and check capsule files.
 // Local only: no network, no account, no telemetry.
-import { resolve, relative, join } from "node:path";
+import { resolve, relative, join, dirname } from "node:path";
 import { existsSync } from "node:fs";
 import { init, InitError, KIT_VERSION, CAPSULES_DIR } from "../lib/init.mjs";
-import { collectFiles, checkAll, openCapsules, UsageError } from "../lib/capsules.mjs";
+import {
+  collectTargets, checkAll, openCapsules, UsageError,
+  repoRootFor, repoPath, gitRoot, checkEvidence, stagedChanges, checkStaged,
+} from "../lib/capsules.mjs";
 
 const HELP = `change-capsules ${KIT_VERSION}: one change capsule per finished agent task, kept in your repo.
 
@@ -14,13 +17,19 @@ Usage:
       and CLAUDE.md, between change-capsules markers. Safe to run again: text outside
       the markers and your existing capsules are never changed.
 
-  change-capsules check [paths...] [--strict] [--json]
+  change-capsules check [paths...] [--evidence] [--staged] [--strict] [--json]
       Validate capsules (default: .capsules/ in the current folder). Exit 1 on errors;
-      with --strict, warnings fail too.
+      with --strict, warnings fail too. Optional checks for a task's closeout:
+        --evidence  local evidence paths in the capsule exist (warns if Git ignores them)
+        --staged    the capsule's changes.files matches the files staged in Git;
+                    applies to the capsules that are themselves staged
+      Typical closeout: git add the work, its evidence and the capsule, then
+        change-capsules check --evidence --staged .capsules/<id>.md
 
   change-capsules open  [paths...] [--json]
       List capsules that still need attention: outcome not completed, or follow-ups
-      that no later capsule resolves.
+      that no later capsule resolves. A failed capsule, or one dated before the
+      capsule it names, does not resolve it.
 
   change-capsules --version | --help
 `;
@@ -35,7 +44,7 @@ function parseArgs(argv) {
     } else if (a.startsWith("--dir=") || a.startsWith("--agents=")) {
       const [k, v] = a.slice(2).split(/=(.*)/s);
       opts[k] = v;
-    } else if (["--dry-run", "--refresh", "--strict", "--json", "--help", "-h", "--version", "-v"].includes(a)) {
+    } else if (["--dry-run", "--refresh", "--strict", "--json", "--evidence", "--staged", "--help", "-h", "--version", "-v"].includes(a)) {
       opts[a.replace(/^-+/, "")] = true;
     } else if (a.startsWith("-")) {
       throw new UsageError(`unknown option ${a}`);
@@ -78,14 +87,47 @@ function defaultTargets(opts) {
   return [dir];
 }
 
+function selected(opts) {
+  const { files, context } = collectTargets(defaultTargets(opts));
+  const wanted = new Set(files.map((f) => resolve(f)));
+  const all = checkAll(context);
+  return { all, results: all.filter((r) => wanted.has(resolve(r.file))) };
+}
+
 function cmdCheck(opts) {
-  const results = checkAll(collectFiles(defaultTargets(opts)));
-  const errors = results.reduce((n, r) => n + r.errors.length, 0);
-  const warnings = results.reduce((n, r) => n + r.warnings.length, 0);
+  const { results } = selected(opts);
+  const general = { errors: [], warnings: [] };
+
+  if (opts.evidence) {
+    for (const r of results) if (r.data) checkEvidence(r, repoRootFor(r.file));
+  }
+  if (opts.staged) {
+    const stagedByRoot = new Map();
+    let compared = 0;
+    for (const r of results) {
+      const root = gitRoot(dirname(resolve(r.file)));
+      if (!root) {
+        r.errors.push("--staged needs the capsule to be in a Git repository");
+        continue;
+      }
+      if (!stagedByRoot.has(root)) stagedByRoot.set(root, stagedChanges(root));
+      const staged = stagedByRoot.get(root);
+      if (!staged.has(repoPath(root, r.file))) continue;
+      compared++;
+      if (r.data) checkStaged(r, staged);
+    }
+    if (compared === 0) general.errors.push("--staged: no capsule is staged; git add the work, its evidence and the capsule first");
+    if (compared > 1) general.warnings.push(`--staged: ${compared} capsules are staged; one task, one capsule per commit`);
+  }
+
+  const errors = results.reduce((n, r) => n + r.errors.length, general.errors.length);
+  const warnings = results.reduce((n, r) => n + r.warnings.length, general.warnings.length);
   const failed = errors > 0 || (opts.strict && warnings > 0);
   if (opts.json) {
     console.log(JSON.stringify({
       ok: !failed,
+      errors: general.errors,
+      warnings: general.warnings,
       capsules: results.map((r) => ({ file: rel(r.file), id: r.data?.id ?? null, errors: r.errors, warnings: r.warnings })),
     }, null, 2));
     return failed ? 1 : 0;
@@ -96,19 +138,22 @@ function cmdCheck(opts) {
     for (const e of r.errors) console.log(`     error: ${e}`);
     for (const w of r.warnings) console.log(`     warning: ${w}`);
   }
+  for (const e of general.errors) console.log(`error: ${e}`);
+  for (const w of general.warnings) console.log(`warning: ${w}`);
   console.log(`\n${results.length} capsule(s), ${errors} error(s), ${warnings} warning(s)`);
   return failed ? 1 : 0;
 }
 
 function cmdOpen(opts) {
-  const results = checkAll(collectFiles(defaultTargets(opts)));
-  const open = openCapsules(results);
-  const unreadable = results.filter((r) => !r.data || typeof r.data.id !== "string");
+  const { all } = selected(opts);
+  const open = openCapsules(all);
+  const unreadable = all.filter((r) => !r.data || typeof r.data.id !== "string");
   if (opts.json) {
     console.log(JSON.stringify({
       open: open.map((r) => ({
         id: r.data.id, file: rel(r.file), title: r.data.title ?? null, outcome: r.data.outcome ?? null,
         follow_ups: r.data.follow_ups ?? [], risks: r.data.risks ?? [],
+        ignored_resolutions: r.ignoredResolutions,
       })),
       unreadable: unreadable.map((r) => ({ file: rel(r.file), errors: r.errors })),
     }, null, 2));
@@ -119,6 +164,7 @@ function cmdOpen(opts) {
     console.log(`${r.data.id}  [${r.data.outcome}]  ${r.data.title ?? ""}`);
     console.log(`  ${rel(r.file)}`);
     for (const f of r.data.follow_ups ?? []) console.log(`  - follow-up: ${f}`);
+    for (const x of r.ignoredResolutions) console.log(`  ! not resolved by ${x.by}: ${x.reason}`);
   }
   for (const r of unreadable) console.log(`(could not read ${rel(r.file)}: run check)`);
   return 0;

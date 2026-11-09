@@ -1,0 +1,2 @@
+# Kit files are LF in every checkout, including Windows with core.autocrlf=true.
+* text=auto eol=lf

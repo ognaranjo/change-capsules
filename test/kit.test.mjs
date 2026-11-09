@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
 import { parseYaml, parseFrontMatter } from "../lib/yaml.mjs";
 import { checkAll, collectFiles, openCapsules, readCapsule } from "../lib/capsules.mjs";
-import { init, upsertSection, BEGIN, END } from "../lib/init.mjs";
+import { init, upsertSection, BEGIN, END, toLf } from "../lib/init.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = join(ROOT, "bin", "change-capsules.mjs");
@@ -67,7 +67,8 @@ test("refuses constructs other parsers would read differently", () => {
 });
 
 test("CRLF files and a byte-order mark read the same", () => {
-  const lf = readFileSync(join(ROOT, "examples/capsules/20261103-1610-retry-on-sync-timeout.md"), "utf8");
+  // Normalize first: a Windows checkout with core.autocrlf=true already has CRLF.
+  const lf = toLf(readFileSync(join(ROOT, "examples/capsules/20261103-1610-retry-on-sync-timeout.md"), "utf8"));
   const crlf = "\uFEFF" + lf.replace(/\n/g, "\r\n");
   assert.deepEqual(parseFrontMatter(crlf).data, parseFrontMatter(lf).data);
 });
@@ -94,7 +95,7 @@ test("check fails on a broken capsule and names each problem", () => {
 });
 
 test("the example capsule in the README is valid", () => {
-  const readme = readFileSync(join(ROOT, "README.md"), "utf8");
+  const readme = toLf(readFileSync(join(ROOT, "README.md"), "utf8"));
   const m = /`\.capsules\/([^`]+)`:\s*\n\s*```markdown\n([\s\S]*?)\n```/.exec(readme);
   assert.ok(m, "README example block not found");
   const dir = tmp();
@@ -208,4 +209,159 @@ test("init --dry-run writes nothing; --agents limits the adapters", () => {
   assert.deepEqual(readdirSync(repo), []);
   assert.ok(steps.some((s) => s.path === "AGENTS.md"));
   assert.ok(!steps.some((s) => s.path === "CLAUDE.md"));
+});
+
+// ---------- 0.1.2: line endings ----------
+
+test("a CRLF rules text does not double carriage returns and a second upsert is unchanged", () => {
+  const crlfSection = "## Rules\r\n\r\nLine one.\r\n";
+  const first = upsertSection("# Notes\r\n", crlfSection);
+  assert.ok(!first.text.includes("\r\r"), JSON.stringify(first.text));
+  assert.equal(upsertSection(first.text, crlfSection).action, "unchanged");
+  assert.equal(upsertSection(first.text, "## Rules\n\nLine one.\n").action, "unchanged");
+});
+
+test("init is unchanged when the installed files were checked out with CRLF", () => {
+  const repo = tmp();
+  init({ root: repo });
+  const files = ["AGENTS.md", "CLAUDE.md", ".capsules/kit.json", ".capsules/capsule.schema.json", ".capsules/TEMPLATE.md", ".capsules/README.md"];
+  for (const f of files) {
+    const p = join(repo, f);
+    writeFileSync(p, toLf(readFileSync(p, "utf8")).replace(/\n/g, "\r\n"));
+  }
+  const before = files.map((f) => readFileSync(join(repo, f), "utf8"));
+  const steps = init({ root: repo });
+  assert.ok(steps.every((s) => s.action === "unchanged"), JSON.stringify(steps));
+  assert.deepEqual(files.map((f) => readFileSync(join(repo, f), "utf8")), before);
+});
+
+// ---------- 0.1.2: resolves must be credible ----------
+
+function capsule(id, { date, outcome = "completed", resolves = [], follow_ups = [], evidence = [], files = [{ path: "src/a.js", status: "modified" }] }) {
+  return [
+    "---",
+    "format: change-capsule/v1",
+    `id: ${id}`,
+    `date: "${date}"`,
+    `title: Capsule ${id}`,
+    "agent:",
+    "  client: codex",
+    "  model: unknown",
+    `outcome: ${outcome}`,
+    "why: Test fixture.",
+    "changes:",
+    "  files:",
+    ...files.flatMap((f) => [`    - path: ${f.path}`, `      status: ${f.status}`, ...(f.from ? [`      from: ${f.from}`] : [])]),
+    "tests:",
+    "  - name: Unit tests",
+    "    result: passed",
+    `evidence: [${evidence.map((e) => JSON.stringify(e)).join(", ")}]`,
+    `risks: ["fixture"]`,
+    `follow_ups: [${follow_ups.map((e) => JSON.stringify(e)).join(", ")}]`,
+    `resolves: [${resolves.join(", ")}]`,
+    "---",
+    "",
+  ].join("\n");
+}
+
+test("a failed or earlier capsule does not close what it names in resolves", () => {
+  const dir = tmp();
+  const target = "20261110-1000-partial-work";
+  writeFileSync(join(dir, `${target}.md`), capsule(target, { date: "2026-11-10T10:00:00Z", outcome: "partial", follow_ups: ["finish it"] }));
+  writeFileSync(join(dir, "20261110-0900-earlier.md"), capsule("20261110-0900-earlier", { date: "2026-11-10T09:00:00Z", resolves: [target] }));
+  writeFileSync(join(dir, "20261110-1100-failed-try.md"), capsule("20261110-1100-failed-try", { date: "2026-11-10T11:00:00Z", outcome: "failed", resolves: [target] }));
+
+  const results = checkAll(collectFiles([dir]));
+  const warn = (id) => results.find((r) => r.data.id === id).warnings.join("\n");
+  assert.match(warn("20261110-0900-earlier"), /dated before .* stays open/);
+  assert.match(warn("20261110-1100-failed-try"), /outcome failed, so 20261110-1000-partial-work stays open/);
+  const open = openCapsules(results);
+  const t = open.find((r) => r.data.id === target);
+  assert.ok(t, "target stays open");
+  assert.equal(t.ignoredResolutions.length, 2);
+  assert.equal(run(["check", "--strict", dir], ROOT).status, 1, "--strict turns the warning into a failure");
+  assert.match(run(["open", dir], ROOT).stdout, /not resolved by 20261110-1100-failed-try: .*outcome failed/);
+
+  writeFileSync(join(dir, "20261110-1200-done.md"), capsule("20261110-1200-done", { date: "2026-11-10T12:00:00Z", resolves: [target] }));
+  assert.ok(!openCapsules(checkAll(collectFiles([dir]))).some((r) => r.data.id === target), "a later, non-failed capsule closes it");
+});
+
+test("checking one capsule still sees the others in its folder for resolves", () => {
+  const dir = tmp();
+  writeFileSync(join(dir, "20261110-1000-a.md"), capsule("20261110-1000-a", { date: "2026-11-10T10:00:00Z", outcome: "partial", follow_ups: ["x"] }));
+  writeFileSync(join(dir, "20261110-1100-b.md"), capsule("20261110-1100-b", { date: "2026-11-10T11:00:00Z", resolves: ["20261110-1000-a"] }));
+  const out = run(["check", "--strict", "--json", join(dir, "20261110-1100-b.md")], ROOT);
+  assert.equal(out.status, 0, out.stdout);
+  assert.equal(JSON.parse(out.stdout).capsules.length, 1);
+});
+
+// ---------- 0.1.2: --evidence and --staged ----------
+
+function gitRepo() {
+  const repo = tmp();
+  const g = (...args) => execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", ...args], { cwd: repo, encoding: "utf8" });
+  g("init", "-q");
+  mkdirSync(join(repo, "src"));
+  mkdirSync(join(repo, ".capsules"));
+  writeFileSync(join(repo, "src/a.js"), "export const a = 1;\n");
+  writeFileSync(join(repo, "src/old.js"), "export const old = 1;\n");
+  writeFileSync(join(repo, ".gitignore"), "tmp-logs/\n");
+  g("add", "-A");
+  g("commit", "-qm", "base");
+  return { repo, g };
+}
+
+test("check --evidence finds missing and Git-ignored evidence; https links are skipped", () => {
+  const { repo } = gitRepo();
+  mkdirSync(join(repo, "logs"));
+  mkdirSync(join(repo, "tmp-logs"));
+  writeFileSync(join(repo, "logs/test.txt"), "ok\n");
+  writeFileSync(join(repo, "tmp-logs/run.txt"), "ok\n");
+  const id = "20261110-1000-evidence";
+  writeFileSync(join(repo, ".capsules", `${id}.md`), capsule(id, {
+    date: "2026-11-10T10:00:00Z",
+    evidence: ["logs/test.txt", "tmp-logs/run.txt", "logs/missing.txt", "https://ci.example.com/run/1"],
+  }));
+  const out = run(["check", "--evidence", "--json", `.capsules/${id}.md`], repo);
+  const c = JSON.parse(out.stdout).capsules[0];
+  assert.equal(out.status, 1);
+  assert.deepEqual(c.errors, ["evidence logs/missing.txt not found in the repository"]);
+  assert.ok(c.warnings.some((w) => /tmp-logs\/run\.txt is ignored by Git/.test(w)), c.warnings.join("\n"));
+  const plain = run(["check", `.capsules/${id}.md`], repo);
+  assert.equal(plain.status, 0, "without --evidence nothing is looked up");
+});
+
+test("check --staged lists files missing from or extra in the capsule, and passes when they match", () => {
+  const { repo, g } = gitRepo();
+  writeFileSync(join(repo, "src/a.js"), "export const a = 2;\n");
+  writeFileSync(join(repo, "src/b.js"), "export const b = 1;\n");
+  g("mv", "src/old.js", "src/new.js");
+  const id = "20261110-1000-staged";
+  const path = join(repo, ".capsules", `${id}.md`);
+  writeFileSync(path, capsule(id, {
+    date: "2026-11-10T10:00:00Z",
+    files: [{ path: "src/a.js", status: "modified" }, { path: "src/c.js", status: "added" }, { path: `.capsules/${id}.md`, status: "added" }],
+  }));
+  g("add", "-A");
+  let out = run(["check", "--staged", "--json", `.capsules/${id}.md`], repo);
+  let c = JSON.parse(out.stdout).capsules[0];
+  assert.equal(out.status, 1);
+  assert.deepEqual(c.errors.sort(), [
+    "in changes.files but not staged: src/c.js",
+    "staged but not in changes.files: src/b.js (added)",
+    "staged but not in changes.files: src/new.js (renamed)",
+  ]);
+
+  writeFileSync(path, capsule(id, {
+    date: "2026-11-10T10:00:00Z",
+    files: [
+      { path: "src/a.js", status: "modified" },
+      { path: "src/b.js", status: "added" },
+      { path: "src/new.js", status: "renamed", from: "src/old.js" },
+      { path: `.capsules/${id}.md`, status: "added" },
+    ],
+  }));
+  g("add", "-A");
+  out = run(["check", "--staged", "--strict", `.capsules/${id}.md`], repo);
+  assert.equal(out.status, 0, out.stdout);
 });
