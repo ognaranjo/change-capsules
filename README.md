@@ -23,6 +23,8 @@ cd your-repo
 npx change-capsules init
 ```
 
+If npm says the package isn't available yet, use the git clone method below.
+
 To pin the version for your team and CI, add it as a dev dependency (`npm install --save-dev change-capsules`); `npx change-capsules` then uses the installed copy.
 
 Prefer not to use npm? Clone this repository and run the script directly:
