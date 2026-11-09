@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "Keep the why, the tests and the evidence of every AI agent change in your repo: one Markdown change capsule per finished task, plus rules for Codex and Claude Code.",
   "license": "MIT",
+  "author": "Oscar G. Naranjo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ognaranjo/change-capsules.git"
+  },
+  "homepage": "https://github.com/ognaranjo/change-capsules#readme",
+  "bugs": {
+    "url": "https://github.com/ognaranjo/change-capsules/issues"
+  },
   "type": "module",
   "bin": {
     "change-capsules": "bin/change-capsules.mjs"
@@ -19,7 +28,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test",
     "check:examples": "node bin/change-capsules.mjs check examples/capsules"
   },
   "keywords": [

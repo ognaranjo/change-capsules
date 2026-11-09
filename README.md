@@ -26,7 +26,7 @@ npx change-capsules init
 Not on npm yet, or prefer not to use it? Clone this repository and run the script directly:
 
 ```bash
-git clone https://github.com/OWNER/change-capsules.git ~/change-capsules
+git clone https://github.com/ognaranjo/change-capsules.git ~/change-capsules
 cd your-repo
 node ~/change-capsules/bin/change-capsules.mjs init
 ```
