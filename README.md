@@ -115,7 +115,7 @@ YAML front matter (machine-readable) plus a free Markdown body (human notes). Th
 | `agent` | yes | `client` (`claude-code`, `codex`, …) and `model`, as the agent declares them (`unknown` is fine) |
 | `outcome` | yes | `completed`, `partial` or `failed` |
 | `why` | yes | The request, bug or decision behind the change |
-| `changes` | yes | `files` (`path`, `status`, `from` for renames) and `commits` |
+| `changes` | yes | `files` (`path`, `status`, `from` for renames) and the task's earlier `commits`; the commit that adds the capsule is read from Git |
 | `tests` | yes | Each check: `name`, `command`, `result` (`passed`, `failed`, `skipped`, `not_run`), counts, notes |
 | `operations` | no | Deploys, migrations, scripted runs: `kind`, `target` (`env:service`), `runs`, `outcome` |
 | `evidence` | no | Repository-relative paths or https links |

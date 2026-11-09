@@ -22,7 +22,7 @@ Each capsule becomes one `change_capsule` write in a ClearTrace write set (`deli
 | `agent.client` | package `actor.tool` | e.g. `claude-code`, `codex`. |
 | `agent.model` | package `actor.model` | Information only, as in ClearTrace. |
 | (derived) | package `actor.actorType`, `actor.roles`, `actor.connectionId`, `actor.displayName` | `ai_agent` with role `agent`, or `human` with role `developer` when `client` is `human`. `connectionId` is `change-capsules:<client>`. |
-| `changes.commits[]` | package `contents.commits` | SHAs as written. The import may resolve short SHAs against the repository when it has access. |
+| `changes.commits[]` + the commit that added the capsule | package `contents.commits` | The capsule never lists the commit it arrives in (its hash doesn't exist when it is written); the import adds it from `git log --diff-filter=A --format=%H -- <capsule file>`. Short SHAs may be resolved against the repository. Without Git access, only the listed commits are known and the import says so. |
 | `changes.files[].path` | `fileChanges[].filePath` | Repository-relative in both. |
 | `changes.files[].status` | `fileChanges[].changeStatus` | Same values; ClearTrace also has `unknown`, which the kit never writes. |
 | `changes.files[].from` | `fileChanges[].previousFilePath` | For `renamed` and `copied`. |

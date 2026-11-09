@@ -15,6 +15,15 @@ Format id: `change-capsule/v1`. Schema: [`schema/capsule.schema.json`](../schema
 - `date` is the same moment in ISO 8601 with a time zone (`Z` or `±HH:MM`). Quote it: some YAML parsers turn unquoted timestamps into date objects.
 - An id is permanent. A capsule is not edited after the task; later work writes a new capsule and names the earlier one in `resolves`.
 
+## Commits
+
+The capsule is committed together with the work, so its author can't know the hash of the commit that contains it. `changes.commits` therefore lists only the task's commits made before the capsule was written, and is often empty. The full set of a task's commits is:
+
+1. the commits listed in `changes.commits`, and
+2. the commit that added the capsule file: `git log --diff-filter=A --format=%H -- .capsules/<id>.md`.
+
+Tools that read capsules (and any import) combine both. Do not amend the commit afterwards to write its own hash into the capsule: that changes the hash again.
+
 ## Fields
 
 See the README table and the schema descriptions. Rules the schema can't express, enforced by `change-capsules check`:
@@ -38,7 +47,7 @@ Front matter must be plain YAML that every parser reads the same way. The checke
 ```json
 {
   "kit": "change-capsules",
-  "kitVersion": "0.1.0",
+  "kitVersion": "0.1.1",
   "format": "change-capsule/v1",
   "formatVersion": 1,
   "capsules": ".capsules",

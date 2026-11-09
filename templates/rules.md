@@ -12,7 +12,7 @@ This repository keeps one change capsule per finished task in `.capsules/`, so t
 3. Write one capsule: copy `.capsules/TEMPLATE.md` to `.capsules/<id>.md`, where the id is the UTC finish time plus a short slug, for example `20261107-1432-retry-on-sync-timeout`.
 4. Fill it from what actually happened, not from the plan:
    - `why`: the request, bug or decision behind the change.
-   - `changes`: every file you changed (take it from `git status` / `git diff --name-status`) and the commits, if you committed.
+   - `changes`: every file the task changed, the capsule included (take them from `git status` / `git diff --name-status`). In `commits`, list only the task's commits made before the capsule; leave out the commit that will contain the capsule, because its hash doesn't exist yet. Tools find that one from Git.
    - `tests`: each check you ran, with the exact command and its real result. A check you skipped is `not_run`; never report a test you did not run.
    - `evidence`: repository-relative paths or https links to logs, screenshots or CI runs that back the claims.
    - `risks` and `follow_ups`: what was not verified and what is left.

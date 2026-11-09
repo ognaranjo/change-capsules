@@ -10,7 +10,7 @@ outcome: completed                     # completed | partial | failed
 why: >
   The request, bug or decision behind this change, in a few sentences.
 changes:
-  commits: []                          # quoted SHAs, oldest first, e.g. ["3f2c9ab"]
+  commits: []                          # earlier commits of this task, quoted, oldest first; not the one that adds this capsule
   files:
     - path: src/example.ts
       status: modified                 # added | modified | deleted | renamed | copied (add from: for the last two)

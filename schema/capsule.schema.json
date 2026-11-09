@@ -71,7 +71,7 @@
             "description": "Commit SHA, quoted."
           },
           "uniqueItems": true,
-          "description": "Commits that carry this task, oldest first. Empty or omitted when the work is not committed yet."
+          "description": "Commits of this task made before the capsule was written, oldest first. The commit that adds the capsule is not listed (its SHA does not exist yet); tools find it with git log --diff-filter=A -- <capsule file>. Empty or omitted when all the work lands in that commit."
         },
         "files": {
           "type": "array",

@@ -1,6 +1,6 @@
 {
   "kit": "change-capsules",
-  "kitVersion": "0.1.0",
+  "kitVersion": "0.1.1",
   "format": "change-capsule/v1",
   "formatVersion": 1,
   "capsules": ".capsules",

@@ -1,6 +1,6 @@
 {
   "name": "change-capsules",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Keep the why, the tests and the evidence of every AI agent change in your repo: one Markdown change capsule per finished task, plus rules for Codex and Claude Code.",
   "license": "MIT",
   "author": "Oscar G. Naranjo",
